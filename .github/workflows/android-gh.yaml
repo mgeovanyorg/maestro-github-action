@@ -1,64 +1,139 @@
-name: Android E2E (Github Actions Ubuntu)
+name: Android & iOS E2E (Github Actions MacOS)
 
 on: [pull_request]
 
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        api-level: [21]
-    steps:
-      - name: checkout
-        uses: actions/checkout@v3
+env:
+  MAESTRO_VERSION: 1.30.4
 
-      - name: set Java
+jobs:
+  run_android_e2e:
+    timeout-minutes: 30
+    runs-on: macos-12
+
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        arch: [ x8 ]
+        # ^^^ `runs-on: macos-*` doesn't support `arm64-v8a`
+
+
+        api-level: [ 26 ]
+        # ^^^ `21`  is the minimum API level supported by React Native
+        # [21, 22, 23, 24, 25,] - didn't work with Maestro
+
+        target: [ default ]
+
+        exclude:
+          # Exclude combinations that are not supported by the Android SDK
+          # Print all available Android emulators: `sdkmanager --list --verbose | grep system-images`
+
+          # x85
+          - arch: x86
+            api-level: 31
+          - arch: x86
+            api-level: 32
+          - arch: x86
+            api-level: 33
+          - arch: x86
+            api-level: 34
+
+          # default
+          - target: default
+            api-level: 30
+            arch: x86
+          - target: default
+            api-level: 31
+            arch: x86
+          - target: default
+            api-level: 32
+          - target: default
+            api-level: 33
+          - target: default
+            api-level: 34
+
+          # google_apis
+          - target: google_apis
+            api-level: 27
+            arch: x86_64
+
+          # google_apis_playstore
+          - target: google_apis_playstore
+            api-level: 21
+          - target: google_apis_playstore
+            api-level: 22
+          - target: google_apis_playstore
+            api-level: 23
+          - target: google_apis_playstore
+            api-level: 24
+            arch: x86_64
+          - target: google_apis_playstore
+            api-level: 25
+            arch: x86_64
+          - target: google_apis_playstore
+            api-level: 26
+            arch: x86_64
+          - target: google_apis_playstore
+            api-level: 27
+            arch: x86_64
+
+
+
+
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
+
+      - run: npx envinfo
+
+      - name: Setup Java
         uses: actions/setup-java@v3
         with:
-          distribution: "adopt"
-          java-version: "11"
+          distribution: temurin
+          java-version: 11
 
-      - name: Run Maestro
-        uses: dniHze/maestro-test-action@v1
+      - name: Install Maestro
+        run: curl -Ls 'https://get.maestro.mobile.dev' | bash
 
-      - name: Enable KVM
-        run: |
-            echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-            sudo udevadm control --reload-rules
-            sudo udevadm trigger --name-match=kvm
-      - name: Gradle cache
-        uses: gradle/actions/setup-gradle@v3
-      
-      - name: AVD cache
-        uses: actions/cache@v4
-        id: avd-cache
-        with:
-          path: |
-            ~/.android/avd/*
-            ~/.android/adb*
-          key: avd-${{ matrix.api-level }}
-         
-      - name: create AVD and generate snapshot for caching
-        if: steps.avd-cache.outputs.cache-hit != 'true'
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-            api-level: ${{ matrix.api-level }}
-            force-avd-creation: false
-            emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-            disable-animations: false
-            script: echo "Generated AVD snapshot for caching."
-            
-      - name: Verify Gradle Wrapper Existence
-        run: |
-          ls -al
-          ls -al ./gradlew
-          
-      - name: run tests
+      - name: Run Maestro E2E tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: ${{ matrix.api-level }}
+          target: ${{ matrix.target }}
+          arch: ${{ matrix.arch }}
+          cores: 2
+          ram-size: 2048M
           force-avd-creation: false
-          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          emulator-boot-timeout: 600 # 10min
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
-          script: ./gradlew connectedCheck
+          pre-emulator-launch-script: |
+            echo "Running pre emulator launch script. Printing the working directory now:"
+            pwd
+          script: |
+            npx envinfo                 # check memory usage
 
+            adb devices                 # verify emulator is running
+
+            adb install app-release.apk # install app
+
+            # Run e2e
+            ./run_android_e2e.sh
+            # ^^^ Will debug files: report*.xml, video_record.mp4, last_img.png
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: E2E Report (${{ matrix.arch }}, ${{ matrix.api-level }}, ${{ matrix.target }})
+          path: |
+            ${{ github.workspace }}/*.mp4
+            ${{ github.workspace }}/*.png
+            ${{ github.workspace }}/report*.xml
+            ~/.maestro/tests/**/*
+
+
+
+  
