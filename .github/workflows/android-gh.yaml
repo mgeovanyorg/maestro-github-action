@@ -55,4 +55,5 @@ jobs:
           force-avd-creation: false
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
-          script: ./src/android/gradlew connectedCheck
+          script: ./gradlew connectedCheck
+
