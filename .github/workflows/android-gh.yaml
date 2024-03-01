@@ -55,6 +55,4 @@ jobs:
           force-avd-creation: false
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
-          ram-size: 2048M
-          target: default
-          script: maestro test --format=junit --output=report.xml .maestro
+          script: ./gradlew connectedCheck
