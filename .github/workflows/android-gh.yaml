@@ -1,6 +1,6 @@
 name: Android E2E (Github Actions Ubuntu)
 
-on: [push, pull_request]
+on: [pull_request]
 
 jobs:
   test:
@@ -58,4 +58,4 @@ jobs:
           disable-animations: true
           ram-size: 2048M
           target: default
-          script: maestro test --format=junit --output=report.xml --no-ansi .maestro
+          script: maestro test --format=junit --output=report.xml .maestro
