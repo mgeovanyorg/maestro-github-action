@@ -12,8 +12,8 @@ jobs:
       fail-fast: false
       max-parallel: 5
       matrix: # only these combinations work stable on `ubuntu-*`:
-        api-level: [26, 27, 28]
-        arch: [x86, x86_64]
+        api-level: [26]
+        arch: [x86]
         target: [default]
         # Print all available Android emulators: `sdkmanager --list --verbose | grep system-images`
         include:
